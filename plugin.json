@@ -1,0 +1,5 @@
+{
+  "name": "handwriting-board",
+  "version": "1.0.0",
+  "description": "Interactive whiteboard MCP App where the AI writes realistic human (and drunk!) handwriting stroke-by-stroke."
+}

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Handwriting Board</title>
+  <style>/*__INLINE_CSS__*/</style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="toolbar">
+      <div class="toolbar-group">
+        <span class="brand" id="board-title">Доска</span>
+        <select id="surface-select" title="Поверхность доски">
+          <option value="paper">Лист в точку</option>
+          <option value="whiteboard">Маркерная доска</option>
+          <option value="notebook">Тетрадь в клетку</option>
+          <option value="lined">Линейка</option>
+          <option value="chalkboard">Школьная доска</option>
+        </select>
+        <span class="status-pill" id="status-pill">Готово</span>
+      </div>
+
+      <div class="toolbar-group">
+        <div class="swatches" id="color-swatches" title="Цвет рисования мышкой">
+          <button class="swatch active" data-color="#1e293b" style="background:#1e293b" aria-label="Чёрный"></button>
+          <button class="swatch" data-color="#1d4ed8" style="background:#1d4ed8" aria-label="Синий"></button>
+          <button class="swatch" data-color="#dc2626" style="background:#dc2626" aria-label="Красный"></button>
+          <button class="swatch" data-color="#15803d" style="background:#15803d" aria-label="Зелёный"></button>
+          <button class="swatch" data-color="#f8fafc" style="background:#f8fafc;border-color:#94a3b8" aria-label="Белый мел"></button>
+        </div>
+        <button class="btn" id="btn-replay" title="Повторить анимацию письма">▶ Повтор</button>
+        <button class="btn" id="btn-speed" title="Скорость анимации">1x</button>
+        <button class="btn" id="btn-undo" title="Отменить последнее">↩</button>
+        <button class="btn" id="btn-clear" title="Очистить доску">🗑</button>
+        <button class="btn btn-primary" id="btn-export" title="Сохранить PNG">PNG</button>
+      </div>
+    </header>
+
+    <main class="stage-wrap">
+      <div class="canvas-frame">
+        <canvas id="board-canvas"></canvas>
+      </div>
+    </main>
+  </div>
+
+  <script>/*__INLINE_JS__*/</script>
+</body>
+</html>
