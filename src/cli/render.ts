@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { RenderedStroke, synthesizeText } from '../engine/handwriting.js';
+import { buildVectorPdf } from '../engine/pdf-export.js';
 import { PenKind, TextItem } from '../types.js';
 import {
   ExportBg,
@@ -43,21 +44,21 @@ const COLOR_ALIASES: Record<string, string> = {
 function printHelp(): void {
   console.log(`Usage: node render.mjs [options]
 
-Renders personal human handwriting to a transparent (or paper) PNG or crisp SVG.
+Renders personal human handwriting to a transparent (or paper) PNG, vector PDF, or SVG.
 
 Options:
   --text <string>       Text to write (supports \\n newlines; or pipe text via stdin)
   --in <path>           Read text from a UTF-8 text file
-  --out <path>          Output .png or .svg path (default: handwriting.png)
-  --hurry <0..1>        Writing speed: 0 = neat v4, 0.5 = everyday (default), 1 = rushed
+  --out <path>          Output .png, .pdf (true vector), or .svg path (default: handwriting.png)
+  --hurry <0..1>        Writing speed: 0 = neat v4, 0.45 = everyday (default), 1 = rushed
   --size <16..96>       Base letter height in px (default: 28)
-  --color <hex|name>    Ink color (default: #18349c; or blue, black, red, green)
+  --color <hex|name>    Ink color (default: #1d31a8; or blue, black, red, green)
   --pen <kind>          ballpoint (default) | fountain | marker | pencil
   --bg <kind>           transparent (default) | paper | white | notebook | lined
   --scale <1..4>        PNG retina scale factor (default: 3)
   --width <200..2400>   Max line width before wrapping (default: 1040)
   --padding <0..200>    Padding around cropped ink in px (default: 24)
-  --slant <-0.4..0.5>   Slant lean (default: 0.19)
+  --slant <-0.4..0.5>   Slant lean (default: 0.24)
   --seed <int>          Random seed for reproducible handwriting
   -h, --help            Show this help message
 `);
@@ -290,6 +291,34 @@ function main(): void {
   const outPath = path.resolve(opts.out);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   const ext = path.extname(outPath).toLowerCase();
+
+  if (ext === '.pdf') {
+    const pdfBytes = buildVectorPdf({
+      strokes: synth.strokes,
+      srcX,
+      srcY,
+      srcW,
+      srcH,
+      bg: opts.bg,
+      title: 'Handwriting Note',
+    });
+    fs.writeFileSync(outPath, pdfBytes);
+    console.log(
+      JSON.stringify({
+        out: outPath,
+        format: 'pdf',
+        vector: true,
+        widthPt: Math.round(srcW * 0.75),
+        heightPt: Math.round(srcH * 0.75),
+        bg: opts.bg,
+        hurry: opts.hurry,
+        seed: opts.seed,
+        strokes: synth.strokes.length,
+        bytes: pdfBytes.length,
+      }),
+    );
+    return;
+  }
 
   if (ext === '.svg') {
     const svg = buildSvg(synth.strokes, srcX, srcY, srcW, srcH, opts.bg);

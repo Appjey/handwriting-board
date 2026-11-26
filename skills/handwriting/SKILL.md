@@ -1,12 +1,12 @@
 ---
 name: handwriting
 description: >-
-  Generates realistic personal handwritten images (transparent 3x PNG or vector SVG)
-  in the user's calibrated Noteshelf 3 handwriting style (Latin, Polish/French diacritics,
-  Russian Cyrillic, digits, punctuation) with configurable writing speed/hurry (0 = neat,
-  0.5 = everyday, 1.0 = rushed). Use when the user asks to write notes, homework, poems,
-  or text by hand, export transparent handwritten overlays for Noteshelf/GoodNotes/docs,
-  or open the standalone interactive handwriting board.
+  Generates realistic personal handwritten images (transparent 3x PNG, lossless vector PDF,
+  or vector SVG) in the user's calibrated Noteshelf 3 handwriting style (Latin, Polish/French
+  diacritics, Russian Cyrillic, digits, punctuation) with configurable writing speed/hurry
+  (0 = neat, 0.45 = everyday, 1.0 = rushed). Use when the user asks to write notes, homework,
+  poems, or text by hand, export vector PDFs (zero pixelation at any zoom) or transparent
+  handwritten overlays for Noteshelf/GoodNotes/docs, or open the standalone interactive board.
 ---
 
 # Personal Handwriting Skill
@@ -41,7 +41,7 @@ This skill renders text in the user's calibrated monoline Noteshelf 3 handwritin
 | :--- | :--- | :--- |
 | `--text <str>` | — | Inline text (`\n` supported); alternatively use `--in <file>` or pipe stdin |
 | `--in <path>` | — | Read UTF-8 text from a file (recommended for long/multilingual text) |
-| `--out <path>` | `handwriting.png` | Output path; `.png` renders raster RGBA, `.svg` renders lossless vector |
+| `--out <path>` | `handwriting.png` | Output path; `.pdf` renders pure lossless vector curves (zero pixelation at any zoom), `.png` renders 3× RGBA, `.svg` renders vector SVG |
 | `--hurry <0..1>` | `0.45` | `0` = neat careful, `0.45` = everyday Noteshelf 3, `0.8–1.0` = fast rushed notes |
 | `--bg <kind>` | `transparent` | `transparent` (for pasting into Noteshelf/docs), `paper` (dot-grid), `white`, `notebook`, `lined` |
 | `--size <16..96>` | `28` | Base letter size in board pixels (`22–26` for dense notes, `28–34` for medium, `40+` for titles) |

@@ -12,10 +12,12 @@ import {
   UserStrokeItem,
 } from '../types.js';
 import {
+  RenderedStroke,
   SynthesizedResult,
   synthesizeDoodle,
   synthesizeText,
 } from '../engine/handwriting.js';
+import { buildVectorPdf, PdfBg } from '../engine/pdf-export.js';
 import {
   renderInkStroke,
   renderPenCursor,
@@ -41,6 +43,8 @@ const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement;
 const btnClear = document.getElementById('btn-clear') as HTMLButtonElement;
 const btnCopyPng = document.getElementById('btn-copy-png') as HTMLButtonElement;
 const btnExportTransparent = document.getElementById('btn-export-transparent') as HTMLButtonElement;
+const btnExportPdf = document.getElementById('btn-export-pdf') as HTMLButtonElement;
+const btnExportPdfClean = document.getElementById('btn-export-pdf-clean') as HTMLButtonElement;
 const btnExportBg = document.getElementById('btn-export-bg') as HTMLButtonElement;
 const btnToggleComposer = document.getElementById('btn-toggle-composer') as HTMLButtonElement;
 const swatchWrap = document.getElementById('color-swatches') as HTMLElement;
@@ -587,11 +591,77 @@ async function buildTransparentPng(desiredScale = 3): Promise<{
   return { blob, dataUrl, width: outW, height: outH };
 }
 
-function makeFilename(prefix: string): string {
+function makeFilename(prefix: string, ext = 'png'): string {
   const now = new Date();
   const pad2 = (n: number) => String(n).padStart(2, '0');
   const stamp = `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}-${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`;
-  return `${prefix}-${stamp}.png`;
+  return `${prefix}-${stamp}.${ext}`;
+}
+
+function collectAllBoardStrokes(): RenderedStroke[] {
+  const strokes: RenderedStroke[] = [];
+  for (const item of boardState.items) {
+    if (item.type === 'user_stroke') {
+      if (item.points.length < 2) continue;
+      strokes.push({
+        points: item.points.map((pt) => ({ x: pt.x, y: pt.y, p: pt.p, t: 0 })),
+        color: item.color,
+        pen: item.pen,
+        baseWidth: item.size,
+        alpha: 1.0,
+      });
+    } else {
+      const synth = getSynth(item);
+      if (synth) strokes.push(...synth.strokes);
+    }
+  }
+  return strokes;
+}
+
+function exportVectorPdf(cleanNoBg: boolean): void {
+  stopAnimation();
+  const strokes = collectAllBoardStrokes();
+  if (strokes.length === 0) {
+    statusPill.textContent = 'На доске пока пусто';
+    return;
+  }
+
+  let srcX = 0;
+  let srcY = 0;
+  let srcW = BOARD_W;
+  let srcH = currentBoardH;
+  let bg: PdfBg = boardState.surface;
+
+  if (cleanNoBg) {
+    const bounds = computeContentBounds();
+    if (!bounds) return;
+    const pad = 26;
+    srcX = bounds.minX - pad;
+    srcY = bounds.minY - pad;
+    srcW = Math.max(40, bounds.maxX - bounds.minX + pad * 2);
+    srcH = Math.max(40, bounds.maxY - bounds.minY + pad * 2);
+    bg = 'transparent';
+  } else {
+    syncBoardHeightToContent();
+    srcH = currentBoardH;
+  }
+
+  const pdfBytes = buildVectorPdf({
+    strokes,
+    srcX,
+    srcY,
+    srcW,
+    srcH,
+    bg,
+    title: boardState.title || 'Handwriting Board',
+  });
+  const blob = new Blob([pdfBytes as unknown as BlobPart], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const filename = makeFilename(cleanNoBg ? 'handwriting-vector-clean' : 'handwriting-vector', 'pdf');
+  triggerDownloadUrl(url, filename);
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  const kb = Math.max(1, Math.round(pdfBytes.length / 1024));
+  statusPill.textContent = `📄 Векторный PDF сохранён (${kb} КБ)`;
 }
 
 function setExportBlobUrl(blob: Blob): string {
@@ -688,6 +758,14 @@ btnToastCopy.addEventListener('click', async () => {
 
 btnCloseToast.addEventListener('click', () => {
   exportToast.classList.add('hidden');
+});
+
+btnExportPdf.addEventListener('click', () => {
+  exportVectorPdf(false);
+});
+
+btnExportPdfClean.addEventListener('click', () => {
+  exportVectorPdf(true);
 });
 
 btnExportBg.addEventListener('click', () => {

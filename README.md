@@ -31,8 +31,12 @@
 # Прозрачный 3x PNG (обрезан по тексту, готов к вставке в Noteshelf)
 node skills/handwriting/scripts/render.mjs --text "Cześć!\nMam na imię Anton." --out note.png
 
-# Из файла с настройкой спешки (0 = аккуратно, 0.5 = обычно, 0.85 = быстро)
-node skills/handwriting/scripts/render.mjs --in text.txt --out homework.png --hurry 0.55 --bg transparent
+# Векторный PDF (чистые кривые Безье — не шакалится при любом приближении!)
+node skills/handwriting/scripts/render.mjs --in text.txt --out homework.pdf --bg paper
+node skills/handwriting/scripts/render.mjs --in text.txt --out overlay.pdf --bg transparent
+
+# Из файла с настройкой спешки (0 = аккуратно, 0.45 = обычно, 0.85 = быстро)
+node skills/handwriting/scripts/render.mjs --in text.txt --out homework.png --hurry 0.45 --bg transparent
 
 # С листом в точку или в векторный SVG
 node skills/handwriting/scripts/render.mjs --in text.txt --out page.png --bg paper
