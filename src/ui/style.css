@@ -98,6 +98,24 @@ select {
   white-space: nowrap;
 }
 
+.hurry-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--color-text-secondary, #475569);
+  background: var(--color-background-primary, #f1f5f9);
+  border: 1px solid var(--color-border-primary, #e2e8f0);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+
+.hurry-control input[type="range"] {
+  width: 68px;
+  accent-color: #18349c;
+  cursor: pointer;
+}
+
 .swatches {
   display: inline-flex;
   align-items: center;

@@ -24,6 +24,8 @@ export interface TextItem {
   color: string;
   pen: PenKind;
   slant: number;
+  /** Writing hurry/speed from 0.0 (neat v4) to 1.0 (fast rushed notes), default 0.5 */
+  hurry?: number;
   seed: number;
   animate: boolean;
   createdAt: number;

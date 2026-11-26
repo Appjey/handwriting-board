@@ -199,7 +199,13 @@ server.registerTool(
         .min(-0.4)
         .max(0.5)
         .optional()
-        .describe('Handwriting lean (-0.4 left to +0.5 right, default 0.12).'),
+        .describe('Handwriting lean (-0.4 left to +0.5 right, default 0.19).'),
+      hurry: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe('Writing hurry/speed from 0.0 (neat careful writing) to 1.0 (fast rushed notes with corner-cutting, word-end flattening, rightward diacritic drift). Default 0.5.'),
       animate: z
         .boolean()
         .optional()
@@ -229,6 +235,7 @@ server.registerTool(
       color,
       pen,
       slant: args.slant ?? 0.19,
+      hurry: args.hurry ?? 0.5,
       seed,
       animate: args.animate ?? true,
       createdAt: Date.now(),

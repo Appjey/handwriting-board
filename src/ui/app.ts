@@ -30,6 +30,8 @@ const ctx = canvas.getContext('2d')!;
 const titleEl = document.getElementById('board-title') as HTMLElement;
 const surfaceSelect = document.getElementById('surface-select') as HTMLSelectElement;
 const statusPill = document.getElementById('status-pill') as HTMLElement;
+const hurrySlider = document.getElementById('hurry-slider') as HTMLInputElement;
+const hurryVal = document.getElementById('hurry-val') as HTMLElement;
 const btnReplay = document.getElementById('btn-replay') as HTMLButtonElement;
 const btnSpeed = document.getElementById('btn-speed') as HTMLButtonElement;
 const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement;
@@ -77,11 +79,17 @@ let activeUserPoints: Array<{ x: number; y: number; p: number }> = [];
 const app = new App({ name: 'Handwriting Board', version: '1.0.0' }, {});
 let mcpConnected = false;
 
+let hurryOverride: number | null = null;
+
 function getSynth(item: BoardItem): SynthesizedResult | null {
   if (item.type === 'user_stroke') return null;
   let cached = synthCache.get(item.id);
   if (!cached) {
-    cached = item.type === 'text' ? synthesizeText(item) : synthesizeDoodle(item);
+    const effective =
+      item.type === 'text' && hurryOverride !== null
+        ? { ...item, hurry: hurryOverride }
+        : item;
+    cached = effective.type === 'text' ? synthesizeText(effective) : synthesizeDoodle(effective);
     synthCache.set(item.id, cached);
   }
   return cached;
@@ -90,9 +98,10 @@ function getSynth(item: BoardItem): SynthesizedResult | null {
 function statusLabel(state: BoardState): string {
   const last = [...state.items].reverse().find((it) => it.type === 'text');
   if (!last || last.type !== 'text') {
-    return state.items.length === 0 ? 'Чистая доска • v4' : `Элементов: ${state.items.length} • v4`;
+    return state.items.length === 0 ? 'Чистая доска • v5' : `Элементов: ${state.items.length} • v5`;
   }
-  return `✍️ ${last.pen} • v4`;
+  const hPct = Math.round((hurryOverride ?? last.hurry ?? 0.5) * 100);
+  return `✍️ ${last.pen} • спешка ${hPct}% • v5`;
 }
 
 function rebuildStaticLayer(excludeId: string | null): void {
@@ -344,6 +353,17 @@ swatchWrap.addEventListener('click', (ev) => {
 btnReplay.addEventListener('click', () => {
   const lastAnim = [...boardState.items].reverse().find((it) => it.type !== 'user_stroke');
   if (lastAnim) startAnimation(lastAnim.id);
+});
+
+hurrySlider.addEventListener('input', () => {
+  const pct = Number(hurrySlider.value);
+  hurryVal.textContent = `${pct}%`;
+  hurryOverride = pct / 100;
+  synthCache.clear();
+  stopAnimation();
+  rebuildStaticLayer(null);
+  paintFrame(null);
+  statusPill.textContent = statusLabel(boardState);
 });
 
 btnSpeed.addEventListener('click', () => {
