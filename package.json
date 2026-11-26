@@ -1,15 +1,17 @@
 {
-  "name": "handwriting-board-mcp",
+  "name": "handwriting-board",
   "version": "1.0.0",
-  "description": "MCP App server: interactive whiteboard where AI writes realistic human (and drunk!) handwriting stroke-by-stroke",
+  "description": "Personal procedural handwriting generator, AI Agent Skill (transparent 3x PNG/SVG CLI), and standalone interactive HTML board",
   "type": "module",
   "main": "dist/server.js",
   "bin": {
+    "handwriting-render": "skills/handwriting/scripts/render.mjs",
     "handwriting-board-mcp": "dist/server.js"
   },
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
+    "render": "node skills/handwriting/scripts/render.mjs",
     "start": "node dist/server.js"
   },
   "dependencies": {
