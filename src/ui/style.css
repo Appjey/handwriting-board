@@ -15,6 +15,7 @@ html, body {
 }
 
 .app-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -27,8 +28,8 @@ html, body {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 7px 10px;
   background: var(--color-background-secondary, #ffffff);
   border-bottom: 1px solid var(--color-border-primary, #e2e8f0);
   flex-shrink: 0;
@@ -37,14 +38,14 @@ html, body {
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex-wrap: wrap;
 }
 
 .brand {
   font-weight: 600;
   font-size: 13px;
-  margin-right: 4px;
+  margin-right: 2px;
   color: var(--color-text-primary, #111827);
 }
 
@@ -54,18 +55,23 @@ select, .btn {
   color: var(--color-text-primary, #1f2937);
   border: 1px solid var(--color-border-primary, #cbd5e1);
   border-radius: 6px;
-  padding: 4px 9px;
+  padding: 4px 8px;
   font-size: 12px;
   font-family: inherit;
   cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
   transition: background 0.12s, border-color 0.12s, transform 0.06s;
 }
 
 select {
-  padding-right: 22px;
+  padding-right: 20px;
   background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
     linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position: calc(100% - 12px) 50%, calc(100% - 7px) 50%;
+  background-position: calc(100% - 11px) 50%, calc(100% - 6px) 50%;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
 }
@@ -79,14 +85,25 @@ select {
 }
 
 .btn-primary {
-  background: var(--color-background-info, #2563eb);
+  background: var(--color-background-info, #18349c);
   color: var(--color-text-inverse, #ffffff);
   border-color: transparent;
 }
 
 .btn-primary:hover {
-  filter: brightness(1.08);
-  background: var(--color-background-info, #1d4ed8);
+  filter: brightness(1.1);
+  background: var(--color-background-info, #1e40af);
+}
+
+.btn-toggle.active {
+  background: rgba(24, 52, 156, 0.12);
+  border-color: rgba(24, 52, 156, 0.45);
+  color: var(--color-text-info, #18349c);
+}
+
+.btn-xs {
+  padding: 2px 7px;
+  font-size: 11px;
 }
 
 .status-pill {
@@ -98,7 +115,7 @@ select {
   white-space: nowrap;
 }
 
-.hurry-control {
+.hurry-control, .mini-control {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -110,8 +127,9 @@ select {
   padding: 2px 7px;
 }
 
-.hurry-control input[type="range"] {
-  width: 68px;
+.hurry-control input[type="range"],
+.mini-control input[type="range"] {
+  width: 64px;
   accent-color: #18349c;
   cursor: pointer;
 }
@@ -147,11 +165,17 @@ select {
 .stage-wrap {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 10px;
   background: var(--color-background-primary, #e5e7eb);
+}
+
+.stage-wrap.tall-mode {
+  overflow: auto;
+  align-items: flex-start;
 }
 
 .canvas-frame {
@@ -162,13 +186,158 @@ select {
   justify-content: center;
 }
 
+.stage-wrap.tall-mode .canvas-frame {
+  height: auto;
+  align-items: flex-start;
+}
+
 #board-canvas {
   max-width: 100%;
   max-height: 100%;
-  aspect-ratio: 3 / 2;
+  width: auto;
+  height: auto;
   border-radius: 8px;
   box-shadow: 0 8px 28px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(15, 23, 42, 0.08);
   cursor: crosshair;
   touch-action: none;
   display: block;
+}
+
+#board-canvas.tall-mode {
+  max-height: none;
+  width: min(100%, 1080px);
+  height: auto;
+}
+
+/* --- Built-in local text composer --- */
+.composer {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--color-background-secondary, #ffffff);
+  border-top: 1px solid var(--color-border-primary, #e2e8f0);
+  flex-shrink: 0;
+}
+
+.composer.hidden {
+  display: none;
+}
+
+#text-input {
+  flex: 1;
+  min-width: 180px;
+  resize: vertical;
+  min-height: 60px;
+  max-height: 180px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border-primary, #cbd5e1);
+  background: var(--color-background-primary, #f8fafc);
+  color: var(--color-text-primary, #111827);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.38;
+  outline: none;
+}
+
+#text-input:focus {
+  border-color: var(--color-ring-primary, #18349c);
+  box-shadow: 0 0 0 2px rgba(24, 52, 156, 0.15);
+}
+
+.composer-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.composer-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 680px) {
+  .composer {
+    flex-direction: column;
+  }
+}
+
+/* --- Transparent PNG export preview / fallback toast --- */
+.export-toast {
+  position: absolute;
+  right: 14px;
+  bottom: 96px;
+  width: min(380px, calc(100% - 28px));
+  background: var(--color-background-secondary, #ffffff);
+  border: 1px solid var(--color-border-primary, #cbd5e1);
+  border-radius: 10px;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.25);
+  z-index: 40;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.export-toast.hidden {
+  display: none;
+}
+
+.export-toast-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border-primary, #e2e8f0);
+}
+
+.export-preview-checker {
+  max-height: 220px;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background-color: #f8fafc;
+  background-image:
+    linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+}
+
+#export-preview-img {
+  max-width: 100%;
+  max-height: 195px;
+  object-fit: contain;
+  display: block;
+}
+
+.export-toast-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--color-border-primary, #e2e8f0);
+  flex-wrap: wrap;
+}
+
+.export-hint {
+  font-size: 11px;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.export-toast-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }

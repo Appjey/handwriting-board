@@ -23969,5 +23969,59 @@ server.registerTool(
     structuredContent: { state: store.clear() }
   })
 );
+server.registerTool(
+  "app_replace_text",
+  {
+    title: "App Replace Board Text",
+    description: "Internal app tool to persist text typed directly by the user in the board editor.",
+    inputSchema: {
+      text: external_exports.string().max(4e3),
+      pen: external_exports.enum(["ballpoint", "marker", "fountain", "chalk", "pencil"]).optional(),
+      color: external_exports.string().optional(),
+      size: external_exports.number().min(16).max(96).optional(),
+      slant: external_exports.number().min(-0.4).max(0.5).optional(),
+      hurry: external_exports.number().min(0).max(1).optional(),
+      seed: external_exports.number().int().optional(),
+      append: external_exports.boolean().optional()
+    },
+    _meta: APP_ONLY_META
+  },
+  async (args) => {
+    const current = args.append ? store.getState() : store.clear();
+    if (!args.text.trim()) {
+      return {
+        content: [{ type: "text", text: "cleared" }],
+        structuredContent: { state: current }
+      };
+    }
+    const pen = resolvePen(args.pen, current.surface);
+    const color = resolveColor(args.color, current.surface);
+    const size = args.size ?? 27;
+    const x = 58;
+    const y = args.append ? current.cursorY : 76;
+    const item = {
+      id: makeId("usrtxt"),
+      type: "text",
+      text: args.text,
+      x,
+      y,
+      maxWidth: current.width - x * 2,
+      size,
+      color,
+      pen,
+      slant: args.slant ?? 0.19,
+      hurry: args.hurry ?? 0.5,
+      seed: args.seed ?? Math.floor(Math.random() * 1e9),
+      animate: false,
+      createdAt: Date.now()
+    };
+    const synth = synthesizeText(item);
+    const state = store.addItem(item, synth.endY + size * 0.35);
+    return {
+      content: [{ type: "text", text: "ok" }],
+      structuredContent: { state }
+    };
+  }
+);
 var transport = new StdioServerTransport();
 await server.connect(transport);

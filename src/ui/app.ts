@@ -8,6 +8,7 @@ import {
   BoardState,
   BoardSurface,
   PenKind,
+  TextItem,
   UserStrokeItem,
 } from '../types.js';
 import {
@@ -23,9 +24,11 @@ import {
 } from '../engine/renderer.js';
 
 const BOARD_W = 1200;
-const BOARD_H = 800;
+const BASE_BOARD_H = 800;
+let currentBoardH = BASE_BOARD_H;
 
 const canvas = document.getElementById('board-canvas') as HTMLCanvasElement;
+const stageWrap = document.getElementById('stage-wrap') as HTMLElement;
 const ctx = canvas.getContext('2d')!;
 const titleEl = document.getElementById('board-title') as HTMLElement;
 const surfaceSelect = document.getElementById('surface-select') as HTMLSelectElement;
@@ -36,19 +39,53 @@ const btnReplay = document.getElementById('btn-replay') as HTMLButtonElement;
 const btnSpeed = document.getElementById('btn-speed') as HTMLButtonElement;
 const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement;
 const btnClear = document.getElementById('btn-clear') as HTMLButtonElement;
-const btnExport = document.getElementById('btn-export') as HTMLButtonElement;
+const btnCopyPng = document.getElementById('btn-copy-png') as HTMLButtonElement;
+const btnExportTransparent = document.getElementById('btn-export-transparent') as HTMLButtonElement;
+const btnExportBg = document.getElementById('btn-export-bg') as HTMLButtonElement;
+const btnToggleComposer = document.getElementById('btn-toggle-composer') as HTMLButtonElement;
 const swatchWrap = document.getElementById('color-swatches') as HTMLElement;
+
+// Local text composer controls
+const composerPanel = document.getElementById('composer-panel') as HTMLElement;
+const textInput = document.getElementById('text-input') as HTMLTextAreaElement;
+const sizeSlider = document.getElementById('size-slider') as HTMLInputElement;
+const sizeVal = document.getElementById('size-val') as HTMLElement;
+const penSelect = document.getElementById('pen-select') as HTMLSelectElement;
+const btnShuffle = document.getElementById('btn-shuffle') as HTMLButtonElement;
+const btnPullText = document.getElementById('btn-pull-text') as HTMLButtonElement;
+const btnAppendBlock = document.getElementById('btn-append-block') as HTMLButtonElement;
+
+// Transparent PNG export preview toast
+const exportToast = document.getElementById('export-toast') as HTMLElement;
+const exportToastTitle = document.getElementById('export-toast-title') as HTMLElement;
+const exportToastHint = document.getElementById('export-toast-hint') as HTMLElement;
+const exportPreviewImg = document.getElementById('export-preview-img') as HTMLImageElement;
+const btnCloseToast = document.getElementById('btn-close-toast') as HTMLButtonElement;
+const btnToastCopy = document.getElementById('btn-toast-copy') as HTMLButtonElement;
+const btnToastDownload = document.getElementById('btn-toast-download') as HTMLAnchorElement;
 
 // High-DPI canvas setup
 const dpr = Math.min(2, window.devicePixelRatio || 1);
-canvas.width = BOARD_W * dpr;
-canvas.height = BOARD_H * dpr;
-
-// Offscreen static cache (surface + already completed items)
 const staticCanvas = document.createElement('canvas');
-staticCanvas.width = BOARD_W * dpr;
-staticCanvas.height = BOARD_H * dpr;
 const staticCtx = staticCanvas.getContext('2d')!;
+
+function resizeCanvases(targetH: number): void {
+  const clampedH = Math.max(BASE_BOARD_H, Math.min(2400, Math.ceil(targetH)));
+  if (clampedH === currentBoardH && canvas.width === BOARD_W * dpr && canvas.height === clampedH * dpr) {
+    return;
+  }
+  currentBoardH = clampedH;
+  canvas.width = BOARD_W * dpr;
+  canvas.height = currentBoardH * dpr;
+  canvas.style.aspectRatio = `${BOARD_W} / ${currentBoardH}`;
+  const isTall = currentBoardH > BASE_BOARD_H + 20;
+  canvas.classList.toggle('tall-mode', isTall);
+  stageWrap.classList.toggle('tall-mode', isTall);
+  staticCanvas.width = BOARD_W * dpr;
+  staticCanvas.height = currentBoardH * dpr;
+}
+
+resizeCanvases(BASE_BOARD_H);
 
 // Cache synthesized strokes per item id so re-renders are instant
 const synthCache = new Map<string, SynthesizedResult>();
@@ -56,10 +93,10 @@ const synthCache = new Map<string, SynthesizedResult>();
 let boardState: BoardState = {
   version: 0,
   title: 'Доска',
-  surface: 'whiteboard',
+  surface: 'paper',
   width: BOARD_W,
-  height: BOARD_H,
-  cursorY: 90,
+  height: BASE_BOARD_H,
+  cursorY: 76,
   items: [],
 };
 
@@ -70,13 +107,25 @@ let animRafId: number | null = null;
 const SPEEDS = [1, 2, 4];
 let speedIdx = 0;
 
-// Freehand user drawing state
-let drawColor = '#1e293b';
+// Shared ink color (default: user's Noteshelf 3 blue) & freehand drawing state
+let drawColor = '#18349c';
 let isDrawing = false;
 let activeUserPoints: Array<{ x: number; y: number; p: number }> = [];
 
+// Local composer state (renders instantly without AI!)
+const LIVE_TEXT_ID = '__composer_live__';
+let composerSeed = Math.floor(Math.random() * 1_000_000_000);
+let composerBaseItems: BoardItem[] | null = null;
+let composerStartY = 76;
+let composerDebounceTimer: number | null = null;
+let serverSyncTimer: number | null = null;
+
+// Last generated transparent PNG blob/URL for preview toast
+let lastExportBlob: Blob | null = null;
+let lastExportBlobUrl: string | null = null;
+
 // MCP App connection
-const app = new App({ name: 'Handwriting Board', version: '1.0.0' }, {});
+const app = new App({ name: 'Handwriting Board', version: '1.1.0' }, {});
 let mcpConnected = false;
 
 let hurryOverride: number | null = null;
@@ -95,18 +144,59 @@ function getSynth(item: BoardItem): SynthesizedResult | null {
   return cached;
 }
 
+function computeContentBounds(): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const item of boardState.items) {
+    if (item.type === 'user_stroke') {
+      const r = Math.max(2, item.size * 0.65);
+      for (const pt of item.points) {
+        if (pt.x - r < minX) minX = pt.x - r;
+        if (pt.y - r < minY) minY = pt.y - r;
+        if (pt.x + r > maxX) maxX = pt.x + r;
+        if (pt.y + r > maxY) maxY = pt.y + r;
+      }
+    } else {
+      const synth = getSynth(item);
+      if (!synth) continue;
+      for (const stroke of synth.strokes) {
+        const r = Math.max(1.6, stroke.baseWidth * 0.85);
+        for (const pt of stroke.points) {
+          if (pt.x - r < minX) minX = pt.x - r;
+          if (pt.y - r < minY) minY = pt.y - r;
+          if (pt.x + r > maxX) maxX = pt.x + r;
+          if (pt.y + r > maxY) maxY = pt.y + r;
+        }
+      }
+    }
+  }
+
+  if (!isFinite(minX)) return null;
+  return { minX, minY, maxX, maxY };
+}
+
+function syncBoardHeightToContent(): void {
+  const bounds = computeContentBounds();
+  const neededH = bounds ? Math.max(BASE_BOARD_H, bounds.maxY + 64) : BASE_BOARD_H;
+  resizeCanvases(neededH);
+}
+
 function statusLabel(state: BoardState): string {
   const last = [...state.items].reverse().find((it) => it.type === 'text');
   if (!last || last.type !== 'text') {
-    return state.items.length === 0 ? 'Чистая доска • v5' : `Элементов: ${state.items.length} • v5`;
+    return state.items.length === 0 ? 'Чистая доска • v6' : `Элементов: ${state.items.length} • v6`;
   }
   const hPct = Math.round((hurryOverride ?? last.hurry ?? 0.5) * 100);
-  return `✍️ ${last.pen} • спешка ${hPct}% • v5`;
+  return `✍️ ${last.pen} • спешка ${hPct}% • v6`;
 }
 
 function rebuildStaticLayer(excludeId: string | null): void {
+  syncBoardHeightToContent();
   staticCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  renderSurface(staticCtx, boardState.surface, BOARD_W, BOARD_H);
+  renderSurface(staticCtx, boardState.surface, BOARD_W, currentBoardH);
 
   for (const item of boardState.items) {
     if (item.id === excludeId) continue;
@@ -223,11 +313,11 @@ function applyBoardState(next: BoardState, forceAnimateLast = false): void {
   titleEl.textContent = next.title || 'Доска';
   surfaceSelect.value = next.surface;
 
-  // Pick a visible default user pen color on dark chalkboard
-  if (next.surface === 'chalkboard' && drawColor === '#1e293b') {
-    setDrawColor('#f8fafc');
+  // Pick a visible default pen color on dark chalkboard
+  if (next.surface === 'chalkboard' && (drawColor === '#1e293b' || drawColor === '#18349c')) {
+    setDrawColor('#f8fafc', false);
   } else if (next.surface !== 'chalkboard' && drawColor === '#f8fafc') {
-    setDrawColor('#1e293b');
+    setDrawColor('#18349c', false);
   }
 
   // Prune stale cache entries
@@ -256,11 +346,14 @@ function applyBoardState(next: BoardState, forceAnimateLast = false): void {
   }
 }
 
-function setDrawColor(color: string): void {
+function setDrawColor(color: string, updateComposer = true): void {
   drawColor = color;
   swatchWrap.querySelectorAll<HTMLButtonElement>('.swatch').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.color === color);
   });
+  if (updateComposer && textInput.value.trim().length > 0) {
+    renderComposerLive(false);
+  }
 }
 
 // --- Server bridge helpers ---
@@ -271,17 +364,351 @@ async function callServer(name: string, args: Record<string, unknown> = {}): Pro
     const sc = (res as { structuredContent?: { state?: BoardState } }).structuredContent;
     if (sc?.state) return sc.state;
   } catch (err) {
-    console.error('callServerTool failed:', name, err);
+    console.warn('callServerTool skipped/failed:', name, err);
   }
   return null;
 }
+
+// --- Local Text Composer (zero AI roundtrips!) ---
+function buildComposerTextItem(text: string, id: string, y: number): TextItem {
+  const size = Number(sizeSlider.value) || 27;
+  const pen = (penSelect.value as PenKind) || 'ballpoint';
+  const hurry = Number(hurrySlider.value) / 100;
+  return {
+    id,
+    type: 'text',
+    text,
+    x: 56,
+    y,
+    maxWidth: BOARD_W - 112,
+    size,
+    color: drawColor,
+    pen: boardState.surface === 'chalkboard' ? 'chalk' : pen,
+    slant: 0.19,
+    hurry,
+    seed: composerSeed,
+    animate: false,
+    createdAt: Date.now(),
+  };
+}
+
+function renderComposerLive(syncToServer = true): void {
+  const text = textInput.value;
+  const baseItems = composerBaseItems ?? [];
+
+  if (!text.trim()) {
+    boardState.items = baseItems.slice();
+    synthCache.delete(LIVE_TEXT_ID);
+    stopAnimation();
+    rebuildStaticLayer(null);
+    paintFrame(null);
+    statusPill.textContent = statusLabel(boardState);
+    return;
+  }
+
+  const liveItem = buildComposerTextItem(text, LIVE_TEXT_ID, composerStartY);
+  synthCache.delete(LIVE_TEXT_ID);
+  boardState.items = [...baseItems, liveItem];
+  boardState.lastAddedId = LIVE_TEXT_ID;
+  stopAnimation();
+  rebuildStaticLayer(null);
+  paintFrame(null);
+  statusPill.textContent = statusLabel(boardState);
+
+  if (syncToServer && mcpConnected) {
+    if (serverSyncTimer !== null) window.clearTimeout(serverSyncTimer);
+    serverSyncTimer = window.setTimeout(() => {
+      void callServer('app_replace_text', {
+        text,
+        pen: liveItem.pen,
+        color: liveItem.color,
+        size: liveItem.size,
+        slant: liveItem.slant,
+        hurry: liveItem.hurry,
+        seed: liveItem.seed,
+        append: baseItems.length > 0,
+      });
+    }, 800);
+  }
+}
+
+textInput.addEventListener('input', () => {
+  if (composerBaseItems === null) {
+    // First edit replaces the board view cleanly so user can type fresh notes immediately
+    composerBaseItems = [];
+    composerStartY = 76;
+  }
+  if (composerDebounceTimer !== null) window.clearTimeout(composerDebounceTimer);
+  composerDebounceTimer = window.setTimeout(() => {
+    renderComposerLive(true);
+  }, 90);
+});
+
+sizeSlider.addEventListener('input', () => {
+  sizeVal.textContent = sizeSlider.value;
+  if (textInput.value.trim()) {
+    renderComposerLive(true);
+  } else {
+    // Scale existing board text items live too!
+    const sz = Number(sizeSlider.value);
+    for (const item of boardState.items) {
+      if (item.type === 'text') item.size = sz;
+    }
+    synthCache.clear();
+    stopAnimation();
+    rebuildStaticLayer(null);
+    paintFrame(null);
+  }
+});
+
+penSelect.addEventListener('change', () => {
+  const pen = penSelect.value as PenKind;
+  if (textInput.value.trim()) {
+    renderComposerLive(true);
+  } else {
+    for (const item of boardState.items) {
+      if (item.type === 'text') item.pen = pen;
+    }
+    synthCache.clear();
+    stopAnimation();
+    rebuildStaticLayer(null);
+    paintFrame(null);
+    statusPill.textContent = statusLabel(boardState);
+  }
+});
+
+btnShuffle.addEventListener('click', () => {
+  composerSeed = Math.floor(Math.random() * 1_000_000_000);
+  if (textInput.value.trim()) {
+    renderComposerLive(true);
+  } else {
+    for (const item of boardState.items) {
+      if (item.type !== 'user_stroke') {
+        item.seed = Math.floor(Math.random() * 1_000_000_000);
+      }
+    }
+    synthCache.clear();
+    stopAnimation();
+    rebuildStaticLayer(null);
+    paintFrame(null);
+  }
+});
+
+btnPullText.addEventListener('click', () => {
+  const existingTexts = boardState.items
+    .filter((it): it is TextItem => it.type === 'text')
+    .map((it) => it.text);
+  if (existingTexts.length === 0) return;
+  composerBaseItems = [];
+  composerStartY = 76;
+  textInput.value = existingTexts.join('\n\n');
+  textInput.focus();
+  renderComposerLive(false);
+});
+
+btnAppendBlock.addEventListener('click', () => {
+  const text = textInput.value;
+  if (!text.trim()) {
+    textInput.focus();
+    return;
+  }
+  const baseItems = composerBaseItems ?? boardState.items.filter((it) => it.id !== LIVE_TEXT_ID);
+  const committedId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const committed = buildComposerTextItem(text, committedId, composerStartY);
+  const synth = getSynth(committed);
+  composerBaseItems = [...baseItems, committed];
+  composerStartY = Math.round((synth ? synth.endY : composerStartY + 120) + committed.size * 0.45);
+  composerSeed = Math.floor(Math.random() * 1_000_000_000);
+  boardState.items = composerBaseItems.slice();
+  synthCache.delete(LIVE_TEXT_ID);
+  textInput.value = '';
+  rebuildStaticLayer(null);
+  paintFrame(null);
+  statusPill.textContent = `✓ Блок добавлен • v6`;
+  textInput.focus();
+});
+
+btnToggleComposer.addEventListener('click', () => {
+  const willHide = !composerPanel.classList.contains('hidden');
+  composerPanel.classList.toggle('hidden', willHide);
+  btnToggleComposer.classList.toggle('active', !willHide);
+  if (!willHide) textInput.focus();
+});
+
+// --- Transparent Cropped 3x PNG Export ---
+async function buildTransparentPng(desiredScale = 3): Promise<{
+  blob: Blob;
+  dataUrl: string;
+  width: number;
+  height: number;
+} | null> {
+  stopAnimation();
+  const bounds = computeContentBounds();
+  if (!bounds) return null;
+
+  const pad = 22;
+  const srcX = bounds.minX - pad;
+  const srcY = bounds.minY - pad;
+  const srcW = Math.max(24, bounds.maxX - bounds.minX + pad * 2);
+  const srcH = Math.max(24, bounds.maxY - bounds.minY + pad * 2);
+
+  // Clamp resolution safely under 4096px max canvas edge while keeping crisp 3x retina quality
+  const maxDim = Math.max(srcW, srcH);
+  const scale = Math.max(1, Math.min(desiredScale, 4096 / maxDim));
+  const outW = Math.max(1, Math.round(srcW * scale));
+  const outH = Math.max(1, Math.round(srcH * scale));
+
+  const expCanvas = document.createElement('canvas');
+  expCanvas.width = outW;
+  expCanvas.height = outH;
+  const expCtx = expCanvas.getContext('2d')!;
+  expCtx.clearRect(0, 0, outW, outH);
+  expCtx.setTransform(scale, 0, 0, scale, -srcX * scale, -srcY * scale);
+
+  // Render ONLY ink strokes (zero background, zero dots!)
+  for (const item of boardState.items) {
+    if (item.type === 'user_stroke') {
+      renderUserStroke(expCtx, item);
+    } else {
+      const synth = getSynth(item);
+      if (synth) {
+        for (const stroke of synth.strokes) {
+          renderInkStroke(expCtx, stroke, Infinity);
+        }
+      }
+    }
+  }
+
+  const dataUrl = expCanvas.toDataURL('image/png');
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    expCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png');
+  });
+
+  return { blob, dataUrl, width: outW, height: outH };
+}
+
+function makeFilename(prefix: string): string {
+  const now = new Date();
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}-${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`;
+  return `${prefix}-${stamp}.png`;
+}
+
+function setExportBlobUrl(blob: Blob): string {
+  if (lastExportBlobUrl) URL.revokeObjectURL(lastExportBlobUrl);
+  lastExportBlob = blob;
+  lastExportBlobUrl = URL.createObjectURL(blob);
+  return lastExportBlobUrl;
+}
+
+function triggerDownloadUrl(url: string, filename: string): void {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function showExportToast(title: string, hint: string, dataUrl: string, blobUrl: string, filename: string): void {
+  exportToastTitle.textContent = title;
+  exportToastHint.textContent = hint;
+  exportPreviewImg.src = dataUrl;
+  btnToastDownload.href = blobUrl;
+  btnToastDownload.download = filename;
+  exportToast.classList.remove('hidden');
+}
+
+async function copyBlobToClipboard(blob: Blob): Promise<boolean> {
+  if (!navigator.clipboard || typeof ClipboardItem === 'undefined') return false;
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    return true;
+  } catch (err) {
+    console.warn('Clipboard image write blocked:', err);
+    return false;
+  }
+}
+
+btnCopyPng.addEventListener('click', async () => {
+  const result = await buildTransparentPng(3);
+  if (!result) {
+    statusPill.textContent = 'На доске пока пусто';
+    return;
+  }
+  const filename = makeFilename('handwriting-transparent');
+  const blobUrl = setExportBlobUrl(result.blob);
+  const copied = await copyBlobToClipboard(result.blob);
+  if (copied) {
+    statusPill.textContent = `📋 PNG без фона скопирован (${result.width}×${result.height})`;
+    const orig = btnCopyPng.textContent;
+    btnCopyPng.textContent = '✓ Скопировано';
+    window.setTimeout(() => {
+      btnCopyPng.textContent = orig;
+    }, 1800);
+  } else {
+    showExportToast(
+      `PNG без фона (${result.width}×${result.height})`,
+      'Буфер ограничен — нажми ПКМ → Копировать картинку',
+      result.dataUrl,
+      blobUrl,
+      filename,
+    );
+    statusPill.textContent = 'Открой превью: ПКМ → Копировать';
+  }
+});
+
+btnExportTransparent.addEventListener('click', async () => {
+  const result = await buildTransparentPng(3);
+  if (!result) {
+    statusPill.textContent = 'На доске пока пусто';
+    return;
+  }
+  const filename = makeFilename('handwriting-transparent');
+  const blobUrl = setExportBlobUrl(result.blob);
+  triggerDownloadUrl(blobUrl, filename);
+  showExportToast(
+    `PNG без фона (${result.width}×${result.height})`,
+    'Скачан! Также можно ПКМ → Копировать / Сохранить',
+    result.dataUrl,
+    blobUrl,
+    filename,
+  );
+  statusPill.textContent = `⬇ PNG без фона (${result.width}×${result.height})`;
+});
+
+btnToastCopy.addEventListener('click', async () => {
+  if (!lastExportBlob) return;
+  const ok = await copyBlobToClipboard(lastExportBlob);
+  btnToastCopy.textContent = ok ? '✓ Скопировано' : 'ПКМ по картинке ↑';
+  window.setTimeout(() => {
+    btnToastCopy.textContent = '📋 Копировать';
+  }, 1800);
+});
+
+btnCloseToast.addEventListener('click', () => {
+  exportToast.classList.add('hidden');
+});
+
+btnExportBg.addEventListener('click', () => {
+  stopAnimation();
+  rebuildStaticLayer(null);
+  paintFrame(null);
+  const url = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = makeFilename('handwriting-board');
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+});
 
 // --- Pointer drawing on the board ---
 function clientToBoard(ev: PointerEvent): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect();
   return {
     x: ((ev.clientX - rect.left) / rect.width) * BOARD_W,
-    y: ((ev.clientY - rect.top) / rect.height) * BOARD_H,
+    y: ((ev.clientY - rect.top) / rect.height) * currentBoardH,
   };
 }
 
@@ -322,6 +749,9 @@ async function finishUserStroke(): Promise<void> {
   };
 
   boardState.items.push(strokeItem);
+  if (composerBaseItems !== null) {
+    composerBaseItems.push(strokeItem);
+  }
   rebuildStaticLayer(animItemId);
   paintFrame(animItemId ? animElapsed : null);
 
@@ -347,7 +777,7 @@ surfaceSelect.addEventListener('change', async () => {
 
 swatchWrap.addEventListener('click', (ev) => {
   const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>('.swatch');
-  if (btn?.dataset.color) setDrawColor(btn.dataset.color);
+  if (btn?.dataset.color) setDrawColor(btn.dataset.color, true);
 });
 
 btnReplay.addEventListener('click', () => {
@@ -372,6 +802,19 @@ btnSpeed.addEventListener('click', () => {
 });
 
 btnUndo.addEventListener('click', async () => {
+  if (composerBaseItems !== null) {
+    if (textInput.value.trim()) {
+      textInput.value = '';
+      renderComposerLive(false);
+      return;
+    }
+    if (composerBaseItems.length > 0) {
+      composerBaseItems.pop();
+      boardState.items = composerBaseItems.slice();
+      applyBoardState({ ...boardState }, false);
+      return;
+    }
+  }
   const next = await callServer('app_undo');
   if (next) {
     applyBoardState(next, false);
@@ -382,25 +825,18 @@ btnUndo.addEventListener('click', async () => {
 });
 
 btnClear.addEventListener('click', async () => {
+  textInput.value = '';
+  composerBaseItems = [];
+  composerStartY = 76;
+  exportToast.classList.add('hidden');
   const next = await callServer('app_clear_board');
   if (next) {
     applyBoardState(next, false);
   } else {
     boardState.items = [];
-    boardState.cursorY = 90;
+    boardState.cursorY = 76;
     applyBoardState({ ...boardState }, false);
   }
-});
-
-btnExport.addEventListener('click', () => {
-  stopAnimation();
-  rebuildStaticLayer(null);
-  paintFrame(null);
-  const url = canvas.toDataURL('image/png');
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `handwriting-board-${Date.now()}.png`;
-  a.click();
 });
 
 // --- MCP App Lifecycle (register handlers BEFORE connect!) ---
@@ -411,6 +847,7 @@ app.ontoolinput = () => {
 app.ontoolresult = (result) => {
   const sc = (result as { structuredContent?: { state?: BoardState } }).structuredContent;
   if (sc?.state) {
+    composerBaseItems = null;
     applyBoardState(sc.state, false);
   }
 };
@@ -421,7 +858,6 @@ app.onhostcontextchanged = (ctx) => {
 };
 
 async function init(): Promise<void> {
-  // Initial blank board render
   rebuildStaticLayer(null);
   paintFrame(null);
 
@@ -431,28 +867,29 @@ async function init(): Promise<void> {
       title: 'Доска',
       surface: 'paper',
       width: BOARD_W,
-      height: BOARD_H,
-      cursorY: 90,
+      height: BASE_BOARD_H,
+      cursorY: 76,
       lastAddedId: 'demo-1',
       items: [
         {
           id: 'demo-1',
           type: 'text',
-          text: '1.) On interesuje się francuskim sportem.\n2.) Bardzo lubię niemiecką kuchnię.',
-          x: 72,
-          y: 110,
-          maxWidth: 1020,
-          size: 30,
-          color: '#1634b0',
+          text: 'Mam na imię Anton i mam 25 lat. Jestem spokojny, miły i wysoki.\nZ zawodu jestem programistą. Bardzo lubię swoją pracę.',
+          x: 56,
+          y: 86,
+          maxWidth: 1080,
+          size: 27,
+          color: '#18349c',
           pen: 'ballpoint',
-          slant: 0.12,
-          seed: 101,
-          animate: true,
+          slant: 0.19,
+          hurry: 0.5,
+          seed: 42,
+          animate: false,
           createdAt: 1,
         },
       ],
     };
-    applyBoardState(demoState, true);
+    applyBoardState(demoState, false);
     return;
   }
 
@@ -463,7 +900,6 @@ async function init(): Promise<void> {
     if (hostCtx?.theme) applyDocumentTheme(hostCtx.theme);
     if (hostCtx?.styles?.variables) applyHostStyleVariables(hostCtx.styles.variables);
 
-    // Fetch current state in case the view was reopened
     const state = await callServer('app_get_state');
     if (state) applyBoardState(state, false);
   } catch (err) {

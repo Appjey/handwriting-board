@@ -27,26 +27,75 @@
       </div>
 
       <div class="toolbar-group">
-        <div class="swatches" id="color-swatches" title="Цвет рисования мышкой">
-          <button class="swatch active" data-color="#1e293b" style="background:#1e293b" aria-label="Чёрный"></button>
-          <button class="swatch" data-color="#1d4ed8" style="background:#1d4ed8" aria-label="Синий"></button>
+        <div class="swatches" id="color-swatches" title="Цвет чернил (для текста и рисования)">
+          <button class="swatch active" data-color="#18349c" style="background:#18349c" aria-label="Синий Noteshelf"></button>
+          <button class="swatch" data-color="#1e293b" style="background:#1e293b" aria-label="Чёрный"></button>
           <button class="swatch" data-color="#dc2626" style="background:#dc2626" aria-label="Красный"></button>
           <button class="swatch" data-color="#15803d" style="background:#15803d" aria-label="Зелёный"></button>
           <button class="swatch" data-color="#f8fafc" style="background:#f8fafc;border-color:#94a3b8" aria-label="Белый мел"></button>
         </div>
-        <button class="btn" id="btn-replay" title="Повторить анимацию письма">▶ Повтор</button>
+        <button class="btn btn-toggle active" id="btn-toggle-composer" title="Показать/скрыть поле ввода текста">✏️ Текст</button>
+        <button class="btn" id="btn-replay" title="Повторить анимацию письма">▶</button>
         <button class="btn" id="btn-speed" title="Скорость анимации">1x</button>
         <button class="btn" id="btn-undo" title="Отменить последнее">↩</button>
         <button class="btn" id="btn-clear" title="Очистить доску">🗑</button>
-        <button class="btn btn-primary" id="btn-export" title="Сохранить PNG">PNG</button>
+        <button class="btn" id="btn-copy-png" title="Скопировать PNG без фона в буфер обмена (Ctrl+V)">📋 Без фона</button>
+        <button class="btn btn-primary" id="btn-export-transparent" title="Экспортировать PNG без фона (прозрачный, обрезанный по тексту, 3x)">⬇ PNG без фона</button>
       </div>
     </header>
 
-    <main class="stage-wrap">
+    <main class="stage-wrap" id="stage-wrap">
       <div class="canvas-frame">
         <canvas id="board-canvas"></canvas>
       </div>
     </main>
+
+    <section class="composer" id="composer-panel">
+      <textarea
+        id="text-input"
+        rows="3"
+        spellcheck="false"
+        placeholder="Введи или вставь текст сюда — сразу напишется твоим почерком без ИИ (Enter — новая строка)..."
+      ></textarea>
+      <div class="composer-side">
+        <div class="composer-row">
+          <label class="mini-control" title="Размер букв">
+            <span>Размер</span>
+            <input type="range" id="size-slider" min="18" max="54" value="27" />
+            <span id="size-val">27</span>
+          </label>
+          <select id="pen-select" title="Тип ручки">
+            <option value="ballpoint" selected>Ручка</option>
+            <option value="fountain">Перо</option>
+            <option value="marker">Маркер</option>
+            <option value="pencil">Карандаш</option>
+          </select>
+        </div>
+        <div class="composer-row">
+          <button class="btn" id="btn-shuffle" title="Сгенерировать другой вариант кривизны букв (новый seed)">🎲 Вариант</button>
+          <button class="btn" id="btn-pull-text" title="Загрузить текущий текст с доски в поле редактирования">↙ С доски</button>
+          <button class="btn" id="btn-append-block" title="Зафиксировать этот текст на доске и начать новый блок ниже">➕ Блок</button>
+          <button class="btn" id="btn-export-bg" title="Скачать PNG вместе с фоном доски">🖼 С фоном</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="export-toast hidden" id="export-toast" role="dialog" aria-label="Превью прозрачного PNG">
+      <div class="export-toast-head">
+        <span id="export-toast-title">PNG без фона</span>
+        <button class="btn btn-xs" id="btn-close-toast" title="Закрыть">✕</button>
+      </div>
+      <div class="export-preview-checker">
+        <img id="export-preview-img" alt="Прозрачный PNG" />
+      </div>
+      <div class="export-toast-foot">
+        <span class="export-hint" id="export-toast-hint">ПКМ по картинке → Копировать / Сохранить</span>
+        <div class="export-toast-actions">
+          <button class="btn btn-xs" id="btn-toast-copy">📋 Копировать</button>
+          <a class="btn btn-xs btn-primary" id="btn-toast-download" download="handwriting.png">⬇ Скачать</a>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>/*__INLINE_JS__*/</script>
