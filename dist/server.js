@@ -23611,6 +23611,12 @@ var APP_MIME = "text/html;profile=mcp-app";
 var INLINE_META = {
   ui: { resourceUri: APP_URI }
 };
+var AUX_PANE_META = {
+  ui: { resourceUri: APP_URI },
+  "com.google.antigravity/ui": {
+    entrypoints: [{ type: "aux_pane", title: "Handwriting Board" }]
+  }
+};
 var PANE_META = {
   ui: { resourceUri: APP_URI },
   "com.google.antigravity/ui": {
@@ -23722,7 +23728,7 @@ server.registerTool(
       animate: external_exports.boolean().optional().describe("Animate writing stroke-by-stroke in real time (default true)."),
       seed: external_exports.number().int().optional().describe("Optional random seed for reproducible handwriting.")
     },
-    _meta: PANE_META
+    _meta: AUX_PANE_META
   },
   async (args) => {
     const current = store.getState();

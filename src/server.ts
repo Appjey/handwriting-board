@@ -41,6 +41,13 @@ const INLINE_META = {
   ui: { resourceUri: APP_URI },
 };
 
+const AUX_PANE_META = {
+  ui: { resourceUri: APP_URI },
+  'com.google.antigravity/ui': {
+    entrypoints: [{ type: 'aux_pane', title: 'Handwriting Board' }],
+  },
+};
+
 const PANE_META = {
   ui: { resourceUri: APP_URI },
   'com.google.antigravity/ui': {
@@ -212,7 +219,7 @@ server.registerTool(
         .describe('Animate writing stroke-by-stroke in real time (default true).'),
       seed: z.number().int().optional().describe('Optional random seed for reproducible handwriting.'),
     },
-    _meta: PANE_META,
+    _meta: AUX_PANE_META,
   },
   async (args) => {
     const current = store.getState();
