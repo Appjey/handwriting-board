@@ -123,17 +123,17 @@ function penBaseWidth(pen: PenKind, xHeight: number): number {
   const s = Math.max(10, xHeight);
   switch (pen) {
     case 'ballpoint':
-      return Math.max(1.4, s * 0.136);
+      return Math.max(1.15, s * 0.102);
     case 'fountain':
-      return Math.max(1.7, s * 0.185);
+      return Math.max(1.5, s * 0.155);
     case 'pencil':
-      return Math.max(1.25, s * 0.12);
+      return Math.max(1.05, s * 0.095);
     case 'marker':
-      return Math.max(2.0, s * 0.185);
+      return Math.max(1.85, s * 0.165);
     case 'chalk':
-      return Math.max(2.3, s * 0.21);
+      return Math.max(2.1, s * 0.19);
     default:
-      return Math.max(1.4, s * 0.136);
+      return Math.max(1.15, s * 0.102);
   }
 }
 
@@ -530,13 +530,13 @@ export function synthesizeText(item: TextItem): SynthesizedResult {
           lastExitPt = null;
         }
         const baseGap = nextIsPunct
-          ? 0.15
-          : (isUpper && nextIsLower ? 0.15 : 0.20) - hurry * 0.03 - wordEndRush * 0.015;
-        const charGap = xHeight * (baseGap + rng.gaussian() * (0.055 + hurry * 0.038)) + extraBreath;
+          ? 0.14
+          : (isUpper && nextIsLower ? 0.12 : 0.15) - hurry * 0.025 - wordEndRush * 0.015;
+        const charGap = xHeight * (baseGap + rng.gaussian() * (0.045 + hurry * 0.032)) + extraBreath;
         const rightEdge = isUpper && nextIsLower ? res.lowerBandMaxX : res.bodyMaxX;
-        const minFloor = nextIsPunct ? 0.13 : Math.max(0.08, 0.115 - hurry * 0.025);
+        const minFloor = nextIsPunct ? 0.12 : Math.max(0.065, 0.095 - hurry * 0.022);
         const safeRight = rightEdge + Math.max(xHeight * minFloor, charGap);
-        cursorX = Math.max(cursorX + xHeight * 0.22, safeRight);
+        cursorX = Math.max(cursorX + xHeight * 0.20, safeRight);
       }
     }
 
