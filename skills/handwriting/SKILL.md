@@ -42,10 +42,10 @@ This skill renders text in the user's calibrated monoline Noteshelf 3 handwritin
 | `--text <str>` | — | Inline text (`\n` supported); alternatively use `--in <file>` or pipe stdin |
 | `--in <path>` | — | Read UTF-8 text from a file (recommended for long/multilingual text) |
 | `--out <path>` | `handwriting.png` | Output path; `.png` renders raster RGBA, `.svg` renders lossless vector |
-| `--hurry <0..1>` | `0.5` | `0` = neat careful (`v4-neat`), `0.5` = everyday hurried, `0.8–1.0` = fast rushed notes |
+| `--hurry <0..1>` | `0.45` | `0` = neat careful, `0.45` = everyday Noteshelf 3, `0.8–1.0` = fast rushed notes |
 | `--bg <kind>` | `transparent` | `transparent` (for pasting into Noteshelf/docs), `paper` (dot-grid), `white`, `notebook`, `lined` |
 | `--size <16..96>` | `28` | Base letter size in board pixels (`22–26` for dense notes, `28–34` for medium, `40+` for titles) |
-| `--color <hex\|name>` | `#18349c` | Ink color (`#18349c` Noteshelf blue, or `blue`, `black`, `red`, `green`) |
+| `--color <hex\|name>` | `#1d31a8` | Ink color (`#1d31a8` exact Noteshelf 3 blue, or `blue`, `black`, `red`, `green`) |
 | `--pen <kind>` | `ballpoint` | `ballpoint` (uniform monoline, default), `fountain` (pressure taper), `marker`, `pencil` |
 | `--width <200..2400>` | `1040` | Max line wrap width in px before auto-wrapping |
 | `--scale <1..4>` | `3` | PNG resolution multiplier (automatically clamped under 4500 px max edge) |

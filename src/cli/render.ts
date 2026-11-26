@@ -28,7 +28,7 @@ interface CliOpts {
 }
 
 const COLOR_ALIASES: Record<string, string> = {
-  blue: '#18349c',
+  blue: '#1d31a8',
   navy: '#1e3a8a',
   black: '#1e293b',
   ink: '#1e293b',
@@ -66,15 +66,15 @@ Options:
 function parseArgs(argv: string[]): CliOpts {
   const opts: CliOpts = {
     out: 'handwriting.png',
-    hurry: 0.5,
+    hurry: 0.45,
     size: 28,
-    color: '#18349c',
+    color: '#1d31a8',
     pen: 'ballpoint',
     bg: 'transparent',
     scale: 3,
     width: 1040,
     padding: 24,
-    slant: 0.19,
+    slant: 0.24,
     seed: Math.floor(Math.random() * 1_000_000_000),
     help: false,
   };

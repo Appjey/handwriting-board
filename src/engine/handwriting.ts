@@ -123,17 +123,17 @@ function penBaseWidth(pen: PenKind, xHeight: number): number {
   const s = Math.max(10, xHeight);
   switch (pen) {
     case 'ballpoint':
-      return Math.max(1.45, s * 0.142);
+      return Math.max(1.4, s * 0.136);
     case 'fountain':
       return Math.max(1.7, s * 0.185);
     case 'pencil':
-      return Math.max(1.3, s * 0.12);
+      return Math.max(1.25, s * 0.12);
     case 'marker':
-      return Math.max(2.1, s * 0.19);
+      return Math.max(2.0, s * 0.185);
     case 'chalk':
-      return Math.max(2.4, s * 0.215);
+      return Math.max(2.3, s * 0.21);
     default:
-      return Math.max(1.45, s * 0.142);
+      return Math.max(1.4, s * 0.136);
   }
 }
 
@@ -287,31 +287,32 @@ export function synthesizeText(item: TextItem): SynthesizedResult {
 
   const rawParagraphs = item.text.replace(/\r\n/g, '\n').split('\n');
   const maxLineWidth = Math.max(160, item.maxWidth);
-  // Real rushed Noteshelf notes pack lines slightly tighter while neat v4 keeps airy 2.85x spacing
-  const lineHeight = xHeight * (2.85 - hurry * 0.42);
-  // Upward-right slope intensifies slightly when rushing
-  const paraSlope = -0.036 - hurry * 0.012 + rng.gaussian() * (0.004 + hurry * 0.006);
+  // Parallel line spacing calibrated to HW 12.4 / rodzina density with zero descender-ascender collisions
+  const lineHeight = xHeight * (2.88 - hurry * 0.18);
+  // Measured directly from vector PDF: hw12_4 (-0.054), rodzina (-0.059), calibrated cleanly (-0.032 neat .. -0.052 fast)
+  const paraSlope = -0.032 - hurry * 0.020 + rng.gaussian() * (0.002 + hurry * 0.003);
 
   let lineIndex = 0;
   let globalCursorY = item.y;
   const lastVariantByChar = new Map<string, number>();
 
-  // Autocorrelated hand-inertia state (AR(1)): consecutive letters move with one hand!
+  // Autocorrelated hand-inertia state (AR(1)): Anton's real ~15-17 deg slant & relaxed 1.24:1 wider letters!
   let handSize = 1.0;
-  let handSlant = slantBase + hurry * 0.075;
-  let handAspectX = 1.14 + hurry * 0.14;
+  let handSlant = slantBase + hurry * 0.045;
+  let handAspectX = 1.22 + hurry * 0.09;
   let handRot = 0.0;
 
   for (const para of rawParagraphs) {
     const words = para.split(/(\s+)/);
-    let cursorX = item.x + rng.gaussian() * (4.5 + hurry * 8.5);
+    let cursorX = item.x + rng.gaussian() * (4.0 + hurry * 5.5);
     let baselineDrift = 0;
-    let lineSlope = paraSlope + rng.gaussian() * (0.0025 + hurry * 0.0065);
+    // Keep lines strictly parallel within a paragraph (tiny ±0.0018 jitter) so long lines never converge!
+    let lineSlope = paraSlope + rng.gaussian() * (0.0016 + hurry * 0.0018);
     const wavePhase = rng.range(0, Math.PI * 2);
-    const waveFreq = rng.range(0.0045, 0.0095);
+    const waveFreq = rng.range(0.0045, 0.0085);
 
     if (para.trim().length === 0) {
-      globalCursorY += lineHeight * 0.68;
+      globalCursorY += lineHeight * 0.65;
       lineIndex++;
       continue;
     }
@@ -325,26 +326,31 @@ export function synthesizeText(item: TextItem): SynthesizedResult {
       if (!token) continue;
 
       if (/^\s+$/.test(token)) {
+        // Leading indentation spaces stay clean and predictable
+        if (prevWordLen === 0) {
+          cursorX += xHeight * 1.15 * token.length;
+          continue;
+        }
         const nextWord = wIdx + 1 < words.length ? words[wIdx + 1] : '';
         const isShortLink = (prevWordLen > 0 && prevWordLen <= 2) || (nextWord.length > 0 && nextWord.length <= 2);
-        // When hurrying, short words like "i mam", "ma na imię", "i lubię" often pull closer together!
-        const shortSnug = hurry >= 0.25 && isShortLink && rng.chance(hurry * 0.55) ? 1 - hurry * 0.36 : 1.0;
+        // Anton leaves generous airy word gaps (~1.75x xHeight), only slightly snugger on short connectors at high hurry
+        const shortSnug = hurry >= 0.50 && isShortLink && rng.chance((hurry - 0.25) * 0.55) ? 0.68 : 1.0;
         const spaceW =
           xHeight *
-          (1.35 - hurry * 0.10 + rng.gaussian() * (0.26 + hurry * 0.26)) *
+          (1.78 - hurry * 0.16 + rng.gaussian() * (0.28 + hurry * 0.26)) *
           shortSnug *
           token.length;
-        const minSpaceFloor = isShortLink ? 0.50 : 0.80;
+        const minSpaceFloor = isShortLink && hurry >= 0.50 ? 0.65 : 1.10;
         cursorX += Math.max(xHeight * minSpaceFloor, spaceW);
-        // Wrist reposition between words: larger gentle baseline step when hurrying
-        baselineDrift = baselineDrift * 0.56 + rng.gaussian() * xHeight * (0.06 + hurry * 0.14);
-        handSize = handSize * 0.48 + (1.0 + rng.gaussian() * (0.075 + hurry * 0.085)) * 0.52;
-        handSlant = handSlant * 0.48 + (slantBase + hurry * 0.075 + rng.gaussian() * (0.055 + hurry * 0.075)) * 0.52;
-        handAspectX = handAspectX * 0.48 + (1.14 + hurry * 0.15 + rng.gaussian() * (0.09 + hurry * 0.13)) * 0.52;
-        handRot = handRot * 0.38 + rng.gaussian() * (0.03 + hurry * 0.055) * 0.62;
+        // Natural wrist reposition between words
+        baselineDrift = baselineDrift * 0.52 + rng.gaussian() * xHeight * (0.07 + hurry * 0.10);
+        handSize = handSize * 0.45 + (1.0 + rng.gaussian() * (0.08 + hurry * 0.065)) * 0.55;
+        handSlant = handSlant * 0.48 + (slantBase + hurry * 0.045 + rng.gaussian() * (0.06 + hurry * 0.055)) * 0.52;
+        handAspectX = handAspectX * 0.48 + (1.22 + hurry * 0.09 + rng.gaussian() * (0.10 + hurry * 0.09)) * 0.52;
+        handRot = handRot * 0.40 + rng.gaussian() * (0.04 + hurry * 0.045) * 0.60;
         lastExitPt = null;
         lastWasLower = false;
-        currentTime += (0.055 + rng.range(0, 0.025)) * (1 - hurry * 0.28);
+        currentTime += (0.055 + rng.range(0, 0.025)) * (1 - hurry * 0.25);
         continue;
       }
 
@@ -354,18 +360,18 @@ export function synthesizeText(item: TextItem): SynthesizedResult {
       for (const ch of token) {
         const entry = GLYPHS[ch] ?? GLYPHS[ch.toLowerCase()];
         const gd = !entry ? FALLBACK_GLYPH : Array.isArray(entry) ? entry[0] : entry;
-        estWordW += (gd.w * (1.16 + hurry * 0.12) + 0.14) * xHeight;
+        estWordW += (gd.w * (1.24 + hurry * 0.08) + 0.19) * xHeight;
       }
 
       if (cursorX > item.x + 20 && cursorX + estWordW > item.x + maxLineWidth) {
         lineIndex++;
-        globalCursorY += lineHeight * rng.range(0.94 - hurry * 0.05, 1.05 + hurry * 0.05);
-        cursorX = item.x + rng.gaussian() * (5.0 + hurry * 9.0);
+        globalCursorY += lineHeight * rng.range(0.96 - hurry * 0.03, 1.04 + hurry * 0.03);
+        cursorX = item.x + rng.gaussian() * (4.5 + hurry * 6.5);
         baselineDrift = 0;
-        lineSlope = paraSlope + rng.gaussian() * (0.0025 + hurry * 0.0065);
+        lineSlope = paraSlope + rng.gaussian() * (0.0016 + hurry * 0.0018);
         lastExitPt = null;
         lastWasLower = false;
-        currentTime += 0.12 * (1 - hurry * 0.25);
+        currentTime += 0.12 * (1 - hurry * 0.22);
       }
 
       const chars = Array.from(token);
@@ -376,86 +382,82 @@ export function synthesizeText(item: TextItem): SynthesizedResult {
         const isUpper = ch !== ch.toLowerCase() && ch === ch.toUpperCase();
         const isLower = ch === ch.toLowerCase() && ch !== ch.toUpperCase();
         const nextIsLower = Boolean(nextCh && nextCh === nextCh.toLowerCase() && nextCh !== nextCh.toUpperCase());
+        const nextIsPunct = Boolean(nextCh && ',.;:?!'.includes(nextCh));
         const isFlatChar = isLower && FLAT_BODY_CHARS.has(ch);
 
-        // Word-end acceleration: long words flatten, stretch wider & lean forward on their final letters!
-        const wordProg = chars.length >= 4 ? cIdx / (chars.length - 1) : 0;
-        const wordEndRush = hurry * Math.max(0, wordProg - 0.30);
+        // Subtle word-end momentum (authentic without crushing final letters!)
+        const wordProg = chars.length >= 6 ? cIdx / (chars.length - 1) : 0;
+        const wordEndRush = hurry * Math.max(0, wordProg - 0.45);
 
-        // Smooth AR(1) hand inertia inside words (adjacent letters share wrist momentum)
-        handSize = handSize * 0.66 + (1.0 + rng.gaussian() * (0.07 + hurry * 0.075)) * 0.34;
-        handSlant = handSlant * 0.70 + (slantBase + hurry * 0.075 + rng.gaussian() * (0.05 + hurry * 0.068)) * 0.30;
-        handAspectX = handAspectX * 0.64 + (1.14 + hurry * 0.15 + rng.gaussian() * (0.085 + hurry * 0.12)) * 0.36;
-        handRot = handRot * 0.58 + rng.gaussian() * (0.032 + hurry * 0.052) * 0.42;
+        // Lively AR(1) hand inertia + individual letter personality (kills "uniform computer font" look!)
+        handSize = handSize * 0.62 + (1.0 + rng.gaussian() * (0.075 + hurry * 0.06)) * 0.38;
+        handSlant = handSlant * 0.66 + (slantBase + hurry * 0.045 + rng.gaussian() * (0.055 + hurry * 0.05)) * 0.34;
+        handAspectX = handAspectX * 0.62 + (1.22 + hurry * 0.09 + rng.gaussian() * (0.095 + hurry * 0.085)) * 0.38;
+        handRot = handRot * 0.56 + rng.gaussian() * (0.038 + hurry * 0.042) * 0.44;
 
-        baselineDrift = baselineDrift * 0.80 + rng.gaussian() * xHeight * (0.016 + hurry * 0.032);
+        baselineDrift = baselineDrift * 0.78 + rng.gaussian() * xHeight * (0.022 + hurry * 0.026);
 
         const dxFromMargin = cursorX - item.x;
         const swayY =
-          Math.sin(dxFromMargin * waveFreq + wavePhase) * xHeight * (0.035 + hurry * 0.095) +
-          noise.fbm(dxFromMargin * 0.0055 + lineIndex * 7.3, 2) * xHeight * (0.03 + hurry * 0.085);
-        // Keep microBounce moderate so letters sit on one flowing hand line instead of jumping wildly
-        const microBounce = rng.gaussian() * xHeight * (0.028 + hurry * 0.036);
+          Math.sin(dxFromMargin * waveFreq + wavePhase) * xHeight * (0.035 + hurry * 0.06) +
+          noise.fbm(dxFromMargin * 0.0055 + lineIndex * 7.3, 2) * xHeight * (0.03 + hurry * 0.055);
+        // Anton's unmistakable lively hand wobble along the line (±0.048..0.075 xHeight)
+        const microBounce = rng.gaussian() * xHeight * (0.046 + hurry * 0.032);
         const charY = globalCursorY + dxFromMargin * lineSlope + baselineDrift + swayY + microBounce;
 
-        // Let glyph scaleBias express itself more when hurrying (at hurry=0: exact v4 0.65/0.35!)
-        const biasWeight = 0.35 + hurry * 0.50;
+        const biasWeight = 0.55 + hurry * 0.30;
         const bias = (1 - biasWeight) + biasWeight * (glyph.scaleBias ?? 1.0);
         const sizeScale = Math.max(
-          0.78,
-          Math.min(1.22, handSize + rng.gaussian() * (0.025 + hurry * 0.055)),
+          0.79,
+          Math.min(1.20, handSize + rng.gaussian() * (0.055 + hurry * 0.045)),
         );
-        const localSize = xHeight * bias * sizeScale * (1 - wordEndRush * 0.08);
+        const localSize = xHeight * bias * sizeScale * (1 - wordEndRush * 0.05);
         const localSlant = Math.max(
-          0.04,
-          Math.min(0.46, handSlant + wordEndRush * 0.11 + rng.gaussian() * (0.018 + hurry * 0.052)),
+          0.08,
+          Math.min(0.44, handSlant + wordEndRush * 0.055 + rng.gaussian() * (0.042 + hurry * 0.045)),
         );
         const localAspectX = Math.max(
-          0.92,
-          Math.min(1.62, (handAspectX + rng.gaussian() * (0.035 + hurry * 0.095)) * (1 + wordEndRush * 0.22)),
+          0.98,
+          Math.min(1.48, (handAspectX + rng.gaussian() * (0.065 + hurry * 0.075)) * (1 + wordEndRush * 0.08)),
         );
+        // Relaxed ~0.87 vertical aspect turns narrow glyphs into Anton's exact 1.22:1 wider-round letters!
         const localAspectY = Math.max(
           0.76,
-          Math.min(1.16, (0.99 + rng.gaussian() * (0.038 + hurry * 0.055))),
+          Math.min(1.04, 0.88 - hurry * 0.03 + rng.gaussian() * (0.048 + hurry * 0.042)),
         );
-        const rotCap = 0.095 + hurry * 0.075;
+        const rotCap = 0.105 + hurry * 0.055;
         const localRot = Math.max(
           -rotCap,
-          Math.min(rotCap, handRot + rng.gaussian() * (0.014 + hurry * 0.045)),
+          Math.min(rotCap, handRot + rng.gaussian() * (0.032 + hurry * 0.035)),
         );
 
-        // Zone-aware vertical shaping (baseline y=1 stays FIXED!):
-        // Lowercase x-height bodies squash unevenly & flatten when rushing, while capitals/ascenders/descenders
-        // keep sweeping height -> authentic spiky/dynamic Noteshelf silhouette without baseline jumping!
-        // Note: glyph.hurried variants already carry a compact vertical shape, so avoid double-squashing them!
+        // Calibrated to vector PDF HW 12.4 + rodzina:
+        // Lowercase body ~0.88-0.96, ascenders ~1.04 -> exact 2.05-2.25x ascender/x-height silhouette!
         const midBase = isUpper
-          ? 1.0 - hurry * 0.04
-          : glyph.hurried
-            ? 1.0 - hurry * 0.08 - wordEndRush * 0.08
-            : isFlatChar
-              ? 1.0 - hurry * 0.24 - wordEndRush * 0.14
-              : 1.0 - hurry * 0.16 - wordEndRush * 0.10;
-        const midFloor = glyph.hurried ? 0.74 : 0.66;
+          ? 1.0
+          : isFlatChar
+            ? 0.94 - hurry * 0.11 - wordEndRush * 0.05
+            : 0.97 - hurry * 0.07 - wordEndRush * 0.04;
         const midScale =
           hurry <= 0.01
-            ? 1.0
-            : Math.max(midFloor, Math.min(1.12, midBase + rng.gaussian() * (hurry * 0.095)));
+            ? Math.max(0.86, Math.min(1.10, 0.96 + rng.gaussian() * 0.045))
+            : Math.max(0.75, Math.min(1.12, midBase + rng.gaussian() * (0.06 + hurry * 0.065)));
         const extScale =
           hurry <= 0.01
-            ? 1.0
-            : Math.max(0.90, Math.min(1.30, 1.0 + hurry * (isUpper ? 0.14 : 0.12) + rng.gaussian() * (hurry * 0.065)));
+            ? 1.02
+            : Math.max(0.92, Math.min(1.18, 1.02 + hurry * 0.05 + rng.gaussian() * (0.045 + hurry * 0.045)));
 
         const baselineY = charY + xHeight;
         const baselineAnchoredY = baselineY - localSize;
 
-        // Occasional rapid stylus skim between close lowercase letters when hurrying!
+        // Anton writes airy detached letters — only very rare subtle skims at high hurry (>= 0.72)
         if (
-          hurry >= 0.25 &&
+          hurry >= 0.72 &&
           lastExitPt &&
           lastWasLower &&
           isLower &&
           glyph.strokes.length > 0 &&
-          rng.chance(hurry * 0.30)
+          rng.chance((hurry - 0.55) * 0.22)
         ) {
           const firstPt = glyph.strokes[0][0];
           const mappedFirstY =
@@ -471,17 +473,17 @@ export function synthesizeText(item: TextItem): SynthesizedResult {
           const dist = Math.hypot(entryX - lastExitPt[0], entryY - lastExitPt[1]);
           if (
             dist > 2 &&
-            dist < xHeight * 0.68 &&
+            dist < xHeight * 0.52 &&
             entryX >= lastExitPt[0] - 1 &&
-            Math.abs(entryY - lastExitPt[1]) < xHeight * 0.52 &&
-            lastExitPt[1] >= baselineY - xHeight * 0.55
+            Math.abs(entryY - lastExitPt[1]) < xHeight * 0.40 &&
+            lastExitPt[1] >= baselineY - xHeight * 0.45
           ) {
             const midX = (lastExitPt[0] + entryX) * 0.5;
-            const midY = (lastExitPt[1] + entryY) * 0.5 + xHeight * 0.05;
+            const midY = (lastExitPt[1] + entryY) * 0.5 + xHeight * 0.04;
             const skim = buildInkStroke([lastExitPt, [midX, midY], [entryX, entryY]], {
               color: item.color,
               pen: item.pen,
-              baseWidth: baseWidth * 0.74,
+              baseWidth: baseWidth * 0.70,
               noise,
               rng,
               startTime: currentTime,
@@ -516,26 +518,25 @@ export function synthesizeText(item: TextItem): SynthesizedResult {
           trackPoint,
         });
 
-        currentTime = res.endTime + (0.012 + rng.range(0, 0.010)) * (1 - hurry * 0.30);
+        currentTime = res.endTime + (0.012 + rng.range(0, 0.010)) * (1 - hurry * 0.25);
         lastExitPt = res.exitPt;
         lastWasLower = isLower;
 
-        // Burst-chunking optical kerning: tight flowing clusters + occasional authentic wrist micro-gap ("Bard zo", "sa mo chody")
+        // Airy detached Anton letter rhythm (HW 12.2 / 12.4) with varied organic letter spacing
         const midWordPause =
-          chars.length >= 5 && cIdx >= 1 && cIdx < chars.length - 1 && rng.chance(0.05 + hurry * 0.14);
-        const extraBreath = midWordPause
-          ? xHeight * rng.range(0.09, 0.18 + hurry * 0.18)
-          : rng.chance(0.05 + hurry * 0.06)
-            ? xHeight * rng.range(0.04, 0.10 + hurry * 0.08)
-            : 0;
+          !nextIsPunct && chars.length >= 6 && cIdx >= 2 && cIdx < chars.length - 2 && rng.chance(0.06 + hurry * 0.08);
+        const extraBreath = midWordPause ? xHeight * rng.range(0.08, 0.16 + hurry * 0.06) : 0;
         if (midWordPause) {
           lastExitPt = null;
         }
-        const baseGap = (isUpper && nextIsLower ? 0.11 : 0.135) - hurry * 0.025 - wordEndRush * 0.045;
-        const charGap = xHeight * (baseGap + rng.gaussian() * (0.028 + hurry * 0.042)) + extraBreath;
+        const baseGap = nextIsPunct
+          ? 0.15
+          : (isUpper && nextIsLower ? 0.15 : 0.20) - hurry * 0.03 - wordEndRush * 0.015;
+        const charGap = xHeight * (baseGap + rng.gaussian() * (0.055 + hurry * 0.038)) + extraBreath;
         const rightEdge = isUpper && nextIsLower ? res.lowerBandMaxX : res.bodyMaxX;
-        const safeRight = rightEdge + Math.max(xHeight * (0.09 - hurry * 0.042), charGap);
-        cursorX = Math.max(cursorX + xHeight * 0.18, safeRight);
+        const minFloor = nextIsPunct ? 0.13 : Math.max(0.08, 0.115 - hurry * 0.025);
+        const safeRight = rightEdge + Math.max(xHeight * minFloor, charGap);
+        cursorX = Math.max(cursorX + xHeight * 0.22, safeRight);
       }
     }
 
@@ -618,9 +619,8 @@ function drawGlyphIntoStrokes(
   let foundBodyX = -Infinity;
   let foundLowerX = -Infinity;
 
-  // Biomechanical speed slurring (corner-cutting low-pass filter when hurrying!)
-  // Keep gentle enough that small loops (o, e, a) preserve clear inner counters even at hurry = 1.0
-  const slurStrength = Math.min(0.34, hurry * 0.26 + wordEndRush * 0.16);
+  // Gentle speed slurring so loops (o, e, a, g, d) stay unmistakably round and never collapse into c/u!
+  const slurStrength = Math.min(0.16, hurry * 0.12 + wordEndRush * 0.06);
 
   const mapZoneY = (gy: number): number => {
     if (gy < 0) return 1.0 - midScale + gy * extScale;
@@ -632,7 +632,6 @@ function drawGlyphIntoStrokes(
     const rawStroke = glyph.strokes[sIdx];
     const nPts = rawStroke.length;
 
-    // Optional biomechanical corner-cutting passes on strokes with >= 4 points
     let slurred: Array<[number, number]> = rawStroke.map(([gx, gy]) => [gx, gy]);
     if (slurStrength > 0.02 && nPts >= 4) {
       const nextPass = slurred.map(([gx, gy]) => [gx, gy] as [number, number]);
@@ -648,34 +647,10 @@ function drawGlyphIntoStrokes(
         ];
       }
       slurred = nextPass;
-      // Second light smoothing pass at high hurry / word ends so waves (m, n, w) glide naturally
-      if (hurry + wordEndRush > 0.68 && nPts >= 8) {
-        const pass2 = slurred.map(([gx, gy]) => [gx, gy] as [number, number]);
-        const s2 = Math.min(0.22, (hurry + wordEndRush - 0.60) * 0.28);
-        for (let pIdx = 1; pIdx < nPts - 1; pIdx++) {
-          const prev = slurred[pIdx - 1];
-          const cur = slurred[pIdx];
-          const next = slurred[pIdx + 1];
-          pass2[pIdx] = [
-            cur[0] + ((prev[0] + next[0]) * 0.5 - cur[0]) * s2,
-            cur[1] + ((prev[1] + next[1]) * 0.5 - cur[1]) * s2,
-          ];
-        }
-        slurred = pass2;
-      }
     }
 
-    // Occasional slightly unclosed top on rapid ovals (o, a, d, g) when hurrying
-    if (hurry > 0.28 && sIdx === 0 && nPts >= 7 && rng.chance(hurry * 0.55)) {
-      const st = slurred[0];
-      const en = slurred[nPts - 1];
-      if (Math.hypot(en[0] - st[0], en[1] - st[1]) < 0.28 && en[1] < 0.45) {
-        slurred[nPts - 1] = [en[0] + hurry * rng.range(0.05, 0.14), en[1] - hurry * rng.range(0.02, 0.08)];
-      }
-    }
-
-    // Per-stroke slight independent wrist angle & drift (second strokes don't align with CAD perfection!)
-    const strokeRot = rotAngle + (sIdx > 0 ? rng.gaussian() * hurry * 0.085 : 0);
+    // Per-stroke slight independent wrist angle & drift (second strokes like t-bar, r-shoulder, i-dot)
+    const strokeRot = rotAngle + (sIdx > 0 ? rng.gaussian() * (0.025 + hurry * 0.045) : 0);
     const cosA = Math.cos(strokeRot);
     const sinA = Math.sin(strokeRot);
     const worldPts: Array<[number, number]> = [];
@@ -683,28 +658,27 @@ function drawGlyphIntoStrokes(
     const isShortDiacritic = sIdx > 0 && nPts <= 3;
     const strokeDx =
       sIdx > 0
-        ? hurry * rng.range(isShortDiacritic ? 0.03 : 0.01, isShortDiacritic ? 0.16 : 0.11) +
-          rng.gaussian() * (0.018 + hurry * 0.042)
+        ? (isShortDiacritic ? hurry * rng.range(0.01, 0.09) : 0) +
+          rng.gaussian() * (0.014 + hurry * 0.026)
         : 0;
     const strokeDy =
       sIdx > 0
-        ? (isShortDiacritic ? -hurry * rng.range(0.0, 0.08) : 0) + rng.gaussian() * (0.018 + hurry * 0.05)
+        ? (isShortDiacritic ? -hurry * rng.range(0.0, 0.05) : 0) + rng.gaussian() * (0.016 + hurry * 0.032)
         : 0;
-    const endStretchX = hurry * rng.range(-0.01, 0.13) + rng.gaussian() * (0.025 + hurry * 0.05);
-    const endStretchY = rng.gaussian() * (0.025 + hurry * 0.045);
+    const endStretchX = hurry * rng.range(-0.01, 0.06) + rng.gaussian() * (0.02 + hurry * 0.03);
+    const endStretchY = rng.gaussian() * (0.02 + hurry * 0.03);
 
-    // Baseline-exit horizontal pull (stylus begins gliding rightward before lifting off glass)
     const lastPtRaw = slurred[nPts - 1];
-    const hasBaselineExit = sIdx === 0 && nPts >= 4 && lastPtRaw[1] >= 0.72 && hurry > 0.2;
-    const exitDragX = hasBaselineExit && rng.chance(0.45 + hurry * 0.35) ? hurry * rng.range(0.04, 0.16) : 0;
-    const exitLiftY = exitDragX > 0 ? -hurry * rng.range(0.0, 0.07) : 0;
+    const hasBaselineExit = sIdx === 0 && nPts >= 4 && lastPtRaw[1] >= 0.78 && hurry > 0.3;
+    const exitDragX = hasBaselineExit && rng.chance(0.28 + hurry * 0.25) ? hurry * rng.range(0.02, 0.08) : 0;
+    const exitLiftY = exitDragX > 0 ? -hurry * rng.range(0.0, 0.04) : 0;
 
     for (let pIdx = 0; pIdx < nPts; pIdx++) {
       const [gx, rawGy] = slurred[pIdx];
       const gy = mapZoneY(rawGy);
       const frac = nPts > 1 ? pIdx / (nPts - 1) : 0;
-      const fieldAmp = 0.024 + hurry * 0.046;
-      const tailFactor = Math.max(0, (frac - 0.72) / 0.28);
+      const fieldAmp = 0.024 + hurry * 0.028;
+      const tailFactor = Math.max(0, (frac - 0.75) / 0.25);
       const dxSmooth =
         noise.sample(fieldSeed + frac * 1.6) * fieldAmp + strokeDx + endStretchX * frac + exitDragX * tailFactor;
       const dySmooth =
@@ -722,13 +696,13 @@ function drawGlyphIntoStrokes(
       worldPts.push([wx, wy]);
     }
 
-    // Hurried tangential tail-flick overshoot on longer strokes
-    if (hurry > 0.22 && worldPts.length >= 3 && rng.chance(hurry * 0.48)) {
+    // Subtle hurried tail-flick overshoot on longer strokes
+    if (hurry > 0.35 && worldPts.length >= 4 && rng.chance(hurry * 0.32)) {
       const a = worldPts[worldPts.length - 2];
       const b = worldPts[worldPts.length - 1];
       const segLen = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      if (segLen > 1.5 && segLen < size * 0.95) {
-        const ov = rng.range(0.10, 0.28) * hurry;
+      if (segLen > 1.5 && segLen < size * 0.85) {
+        const ov = rng.range(0.05, 0.14) * hurry;
         worldPts.push([b[0] + (b[0] - a[0]) * ov, b[1] + (b[1] - a[1]) * ov]);
       }
     }

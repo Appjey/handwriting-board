@@ -81,7 +81,7 @@ const COLOR_MAP: Record<string, string> = {
 
 function resolveColor(input: string | undefined, surface: BoardSurface): string {
   if (!input) {
-    return surface === 'chalkboard' ? '#f8fafc' : '#18349c';
+    return surface === 'chalkboard' ? '#f8fafc' : '#1d31a8';
   }
   const lower = input.trim().toLowerCase();
   return COLOR_MAP[lower] ?? input.trim();
@@ -241,7 +241,7 @@ server.registerTool(
       size,
       color,
       pen,
-      slant: args.slant ?? 0.19,
+      slant: args.slant ?? 0.24,
       hurry: args.hurry ?? 0.5,
       seed,
       animate: args.animate ?? true,
@@ -528,7 +528,7 @@ server.registerTool(
       size,
       color,
       pen,
-      slant: args.slant ?? 0.19,
+      slant: args.slant ?? 0.24,
       hurry: args.hurry ?? 0.5,
       seed: args.seed ?? Math.floor(Math.random() * 1_000_000_000),
       animate: false,

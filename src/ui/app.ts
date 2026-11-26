@@ -107,8 +107,8 @@ let animRafId: number | null = null;
 const SPEEDS = [1, 2, 4];
 let speedIdx = 0;
 
-// Shared ink color (default: user's Noteshelf 3 blue) & freehand drawing state
-let drawColor = '#18349c';
+// Shared ink color (default: exact measured Noteshelf 3 blue #1d31a8) & freehand drawing state
+let drawColor = '#1d31a8';
 let isDrawing = false;
 let activeUserPoints: Array<{ x: number; y: number; p: number }> = [];
 
@@ -187,10 +187,10 @@ function syncBoardHeightToContent(): void {
 function statusLabel(state: BoardState): string {
   const last = [...state.items].reverse().find((it) => it.type === 'text');
   if (!last || last.type !== 'text') {
-    return state.items.length === 0 ? 'Чистая доска • v6' : `Элементов: ${state.items.length} • v6`;
+    return state.items.length === 0 ? 'Чистая доска • v8' : `Элементов: ${state.items.length} • v8`;
   }
-  const hPct = Math.round((hurryOverride ?? last.hurry ?? 0.5) * 100);
-  return `✍️ ${last.pen} • спешка ${hPct}% • v6`;
+  const hPct = Math.round((hurryOverride ?? last.hurry ?? 0.45) * 100);
+  return `✍️ ${last.pen} • спешка ${hPct}% • v8`;
 }
 
 function rebuildStaticLayer(excludeId: string | null): void {
@@ -314,10 +314,10 @@ function applyBoardState(next: BoardState, forceAnimateLast = false): void {
   surfaceSelect.value = next.surface;
 
   // Pick a visible default pen color on dark chalkboard
-  if (next.surface === 'chalkboard' && (drawColor === '#1e293b' || drawColor === '#18349c')) {
+  if (next.surface === 'chalkboard' && (drawColor === '#1e293b' || drawColor === '#1d31a8' || drawColor === '#18349c')) {
     setDrawColor('#f8fafc', false);
   } else if (next.surface !== 'chalkboard' && drawColor === '#f8fafc') {
-    setDrawColor('#18349c', false);
+    setDrawColor('#1d31a8', false);
   }
 
   // Prune stale cache entries
@@ -384,7 +384,7 @@ function buildComposerTextItem(text: string, id: string, y: number): TextItem {
     size,
     color: drawColor,
     pen: boardState.surface === 'chalkboard' ? 'chalk' : pen,
-    slant: 0.19,
+    slant: 0.24,
     hurry,
     seed: composerSeed,
     animate: false,
@@ -879,10 +879,10 @@ async function init(): Promise<void> {
           y: 86,
           maxWidth: 1080,
           size: 27,
-          color: '#18349c',
+          color: '#1d31a8',
           pen: 'ballpoint',
-          slant: 0.19,
-          hurry: 0.5,
+          slant: 0.24,
+          hurry: 0.45,
           seed: 42,
           animate: false,
           createdAt: 1,

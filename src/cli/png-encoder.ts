@@ -13,7 +13,7 @@ export interface RgbaCanvas {
 export function parseColor(input: string): [number, number, number] {
   const s = input.trim().toLowerCase();
   const named: Record<string, string> = {
-    blue: '#18349c',
+    blue: '#1d31a8',
     navy: '#1e3a8a',
     black: '#1e293b',
     ink: '#1e293b',
